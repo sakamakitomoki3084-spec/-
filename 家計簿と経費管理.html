@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>家計簿と経費管理</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="家計簿">
+<meta name="theme-color" content="#bf0000">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f0f0f2;--card:#fff;--tx:#1a1a1a;--sub:#6b7280;--ac:#bf0000;--acbg:#fde8e8;--bd:#e5e5ea;--warn:#b54708;--warnbg:#fff4e5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#12151b;--card:#1b2029;--tx:#e8ebf0;--sub:#9aa3b2;--ac:#4cc29a;--acbg:#173a2e;--bd:#2c3340;--warn:#f5a54a;--warnbg:#3a2a14}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 -apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:720px;margin:0 auto;padding:12px 12px 80px}
+nav{display:flex;position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--bd);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));z-index:5}
+nav button{flex:1;padding:4px 0;border:0;background:none;color:var(--sub);font-size:11px;line-height:1.3}nav button span{display:block;font-size:20px}
+nav button.on{color:var(--ac);font-weight:700}
+.card{background:var(--card);border:0;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.row{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.sub{color:var(--sub);font-size:12px}
+.tag{display:inline-block;padding:1px 8px;border-radius:99px;font-size:11px;background:var(--acbg);color:var(--ac);margin-right:4px}
+.tag.w{background:var(--warnbg);color:var(--warn)}
+input,select,textarea,button{font:inherit;color:var(--tx)}
+input,select,textarea{width:100%;padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--card)}
+.btn{padding:9px 14px;border:1px solid var(--ac);background:var(--ac);color:#fff;border-radius:10px}
+.btn.g{background:var(--card);color:var(--ac)}
+.btn.r{border-color:#c0392b;color:#c0392b;background:var(--card)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.chips button{padding:6px 12px;border:1px solid var(--ac);background:var(--card);color:var(--ac);border-radius:99px}
+.chips button.on{background:var(--ac);color:#fff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{font-size:12px;color:var(--sub);display:block;margin:6px 0 2px}
+.amt{font-weight:600;white-space:nowrap}.neg{color:var(--tx)}.pos{color:#1677ff}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid var(--bd);padding:6px;text-align:left;white-space:nowrap}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--ac);z-index:10}
+#hd{margin:-12px -12px 8px;padding:14px 16px;background:var(--ac);color:#fff;font-weight:700;font-size:17px;position:sticky;top:env(safe-area-inset-top,0px);z-index:4}
+.hero{background:linear-gradient(135deg,var(--ac),#ff7a3d);color:#fff}.hero .sub{color:rgba(255,255,255,.88)}.hero .pos{color:#fff}
+.note{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:10px;font-size:13px;margin:8px 0}
+</style>
+</head>
+<body>
+<main>
+<div id="hd">📒 家計簿と経費管理</div>
+<nav id="nav"></nav>
+<div id="v"></div>
+</main>
+<script>
+var ICON={"食費":"🍙","日用品":"🧴","交通":"🚃","通信":"📱","光熱":"💡","住居":"🏠","保険":"🛡️","医療":"💊","教育":"📚","娯楽":"🎬","通販":"📦","投資":"📈","収入":"💰","その他":"🔖"},THEMES={"楽天":["#bf0000","#ff5a5a","#fde8e8","#4a1515"],"緑":["#0b6e4f","#4cc29a","#e3f3ec","#173a2e"],"青":["#2563eb","#7aa7ff","#e0e9ff","#1c2b4d"],"ピンク":["#d6336c","#ff8fb3","#fde4ee","#4a1c2e"],"紫":["#7048e8","#b197fc","#ece6ff","#2b2250"]},PAL=["#ff5a5f","#ffb400","#00c2a8","#4c8dff","#a66bff","#ff7ac6","#7ad93f","#ff8a3d","#33c3ff","#c0a060"],KEY="kakei_v1",S={tx:[]},tab="home",open=null,flt={m:"",g:"",e:false},dl=null;
+try{var r=localStorage.getItem(KEY);if(r)S=JSON.parse(r)}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+var GEN=[["収入",/給与|賞与|家賃収入|入金/],["投資",/証券|SBI|NISA|配当|買付/],["住居",/家賃|管理費|修繕積立|固定資産税|都市計画税|ローン/],["光熱",/電力|電気|ガス|水道/],["通信",/ドコモ|docomo|ソフトバンク|SoftBank|楽天モバイル|NTT|プロバイダ|インターネット|\bau\b/i],["交通",/JR|Suica|PASMO|ICOCA|タクシー|ガソリン|ENEOS|出光|高速|ETC|駐車|電鉄|バス/],["保険",/保険|共済/],["医療",/病院|クリニック|薬局|歯科/],["教育",/書籍|書店|紀伊國屋|Kindle|セミナー|講座|Udemy|受験|ブック/],["食費",/セブン|ローソン|ファミリーマート|ファミマ|スーパー|イオン|マクドナルド|スタバ|吉野家|すき家|コンビニ|ライフ|西友|カフェ|食堂|ラーメン/],["日用品",/ダイソー|ドラッグ|ココカラ|マツキヨ|ニトリ|無印|ホームセンター/],["娯楽",/Netflix|Prime|Spotify|映画|ゲーム|Steam/],["通販",/Amazon|楽天市場|Yahoo|メルカリ/]];
+var EXP=[[/固定資産税|都市計画税/,"租税公課",[100],"土地分も可。取得時の土地分の不動産取得税・登録免許税は不可"],[/火災保険|地震保険/,"損害保険料",[100],"賃貸用のみ"],[/管理費|修繕積立|管理委託|サブリース/,"管理費",[100],"修繕積立金は計上時期に注意"],[/修繕|リフォーム|クリーニング|原状回復|鍵交換/,"修繕費",[100],"資本的支出なら減価償却"],[/広告|仲介手数料|ポータル/,"広告・仲介料",[100],""],[/税理士|司法書士|弁護士|freee|マネーフォワード|弥生|会計ソフト/,"支払手数料",[100],""],[/ローン|利息/,"借入金利息",[100],"利息部分のみ。元本返済は不可"],[/ガソリン|ENEOS|出光|高速|ETC|駐車/,"車両費",[10,20,30],"物件見回り分のみ。使用記録を残す"],[/JR|Suica|PASMO|ICOCA|タクシー|電鉄|バス/,"交通費",[10,50,100],"物件の見回り・立会いの分のみ"],[/ドコモ|docomo|ソフトバンク|SoftBank|楽天モバイル|NTT|プロバイダ|インターネット|\bau\b/i,"通信費",[10,20,30],"事業使用割合の根拠を残す"],[/電力|電気|ガス|水道/,"光熱費(自宅事務所)",[5,10,20],"専用スペースの面積比が目安"],[/書籍|書店|紀伊國屋|Kindle|セミナー|講座|ブック/,"研修・図書費",[100],"賃貸経営・記帳・税務に直結するもののみ"],[/ヨドバシ|ビックカメラ|文具|パソコン|Apple/,"消耗品・備品",[10,30,50],"10万円以上は減価償却"]];
+function judge(d,a){var g="その他",i,x=null;if(a>0)g="収入";else for(i=0;i<GEN.length;i++)if(GEN[i][1].test(d)){g=GEN[i][0];break}
+if(a<0)for(i=0;i<EXP.length;i++)if(EXP[i][0].test(d)){x=EXP[i];break}
+if(a<0&&S.rules&&S.rules[key(d)])g=S.rules[key(d)];return{g:g,x:x?{cat:x[1],c:x[2],n:x[3]}:null}}
+function mk(date,desc,amt,src){var j=judge(desc,amt),t={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),date:date,desc:desc,amt:amt,src:src,g:j.g,e:{on:false,cat:"",ratio:0,memo:"",cand:[]}};
+if(j.x){t.e.cat=j.x.cat;t.e.cand=j.x.c;t.e.ratio=j.x.c.length==1?j.x.c[0]:0;t.e.memo=j.x.n;t.e.sug=true}return t}
+function csv(t){var o=[],r=[],c="",q=false,i,ch;for(i=0;i<t.length;i++){ch=t[i];if(q){if(ch=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=ch}else if(ch=='"')q=true;else if(ch==","){r.push(c);c=""}else if(ch=="\n"||ch=="\r"){if(ch=="\r"&&t[i+1]=="\n")i++;r.push(c);c="";if(r.some(function(x){return x.trim()}))o.push(r);r=[]}else c+=ch}
+if(c||r.length){r.push(c);o.push(r)}return o}
+function num(s){var n=parseFloat(String(s||"").replace(/[,¥円\s]/g,""));return isNaN(n)?0:n}
+function nd(s){var m=String(s).match(/(\d{4})[\/\-年.](\d{1,2})[\/\-月.](\d{1,2})/);return m?m[1]+"-"+("0"+m[2]).slice(-2)+"-"+("0"+m[3]).slice(-2):null}
+function imp(rows,src,pos){var h=-1,i,ci={d:0,t:1,a:2,o:-1,n:-1};for(i=0;i<Math.min(rows.length,6);i++)if(rows[i].some(function(c){return /日付|日時|利用日|取引日|年月日/.test(c)})){h=i;break}
+if(h>=0){rows[h].forEach(function(c,k){if(/日付|日時|利用日|取引日|年月日/.test(c)&&ci.d===0&&!ci._d){ci.d=k;ci._d=1}if(/内容|摘要|店名|取引先|店舗|品目|利用先|お取引内容/.test(c)&&!ci._t){ci.t=k;ci._t=1}if(/出金|支払|利用金額|金額/.test(c)&&!/入金/.test(c)&&!ci._a){ci.a=k;ci._a=1}if(/入金|お預入/.test(c))ci.n=k})}
+var add=0,skip=0,ex={};S.tx.forEach(function(t){ex[t.date+"|"+t.desc+"|"+t.amt+"|"+t.src]=1});
+rows.slice(h+1).forEach(function(r){var d=nd(r[ci.d]);if(!d)return;var a,de=(r[ci.t]||"").trim();var o=num(r[ci.a]),n=ci.n>=0?num(r[ci.n]):0;
+if(ci.n>=0&&n)a=n-Math.abs(o);else a=pos?-Math.abs(o):(o);if(!a)return;var k=d+"|"+de+"|"+a+"|"+src;if(ex[k]){skip++;return}ex[k]=1;S.tx.push(mk(d,de,a,src));add++});
+save();return add+"件を追加、"+skip+"件は重複のため除外"}
+function key(d){return String(d).replace(/[0-9\s\-#*\/]+/g,"").slice(0,8)}function gl(){var o={};GEN.forEach(function(x){o[x[0]]=1});o["その他"]=1;S.tx.forEach(function(t){o[t.g]=1});return Object.keys(o)}function learn(t){if(!S.rules)S.rules={};var k=key(t.desc);if(!k)return;S.rules[k]=t.g;var n=0;S.tx.forEach(function(x){if(x!==t&&(x.amt<0)==(t.amt<0)&&key(x.desc)==k&&x.g!=t.g){x.g=t.g;n++}});if(n)alert("同じ店名の"+n+"件も「"+t.g+"」に変更しました。今後の取込にも反映されます")}function yen(n){return (n<0?"-":"")+"¥"+Math.abs(Math.round(n)).toLocaleString()}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function ek(t){return t.e.on?Math.round(Math.abs(t.amt)*t.e.ratio/100):0}
+function nav(){var T=[["home","ホーム","🏠"],["tx","取引","📒"],["imp","取込","📥"],["exp","経費","🧾"],["set","設定","⚙️"]];document.getElementById("nav").innerHTML=T.map(function(x){return '<button class="'+(tab==x[0]?"on":"")+'" data-t="'+x[0]+'"><span>'+x[2]+"</span>"+x[1]+"</button>"}).join("")}
+document.getElementById("nav").onclick=function(e){var b=e.target.closest("[data-t]"),t=b&&b.getAttribute("data-t");if(t){tab=t;open=null;render()}};
+var V=document.getElementById("v");
+function render(){nav();({home:vHome,tx:vTx,imp:vImp,exp:vExp,set:vSet})[tab]()}
+function filt(){return S.tx.filter(function(t){return(!flt.m||t.date.slice(0,7)==flt.m)&&(!flt.g||t.g==flt.g)&&(!flt.e||t.e.on||t.e.sug)}).sort(function(a,b){return a.date<b.date?1:-1})}
+function vTx(){var L=filt(),ms={},gs={},inc=0,out=0,i;S.tx.forEach(function(t){ms[t.date.slice(0,7)]=1;gs[t.g]=1});L.forEach(function(t){if(t.amt>0)inc+=t.amt;else out+=t.amt});
+var h='<div class="card"><div class="grid"><div><label>月</label><select id="fm"><option value="">すべて</option>'+Object.keys(ms).sort().reverse().map(function(m){return'<option '+(flt.m==m?"selected":"")+'>'+m+"</option>"}).join("")+'</select></div><div><label>ジャンル</label><select id="fg"><option value="">すべて</option>'+Object.keys(gs).sort().map(function(m){return'<option '+(flt.g==m?"selected":"")+'>'+m+"</option>"}).join("")+'</select></div></div><label><input type="checkbox" id="fe" style="width:auto" '+(flt.e?"checked":"")+'> 経費の候補・計上済みだけ表示</label>';
+h+='<div class="row" style="margin-top:8px"><span>収入 <b class="pos">'+yen(inc)+'</b></span><span>支出 <b>'+yen(out)+'</b></span></div></div>';
+h+='<div class="card"><b>手入力で追加</b><div class="grid"><div><label>日付</label><input type="date" id="md" value="'+new Date().toISOString().slice(0,10)+'"></div><div><label>金額(支出はマイナス)</label><input id="ma" inputmode="numeric" placeholder="-1200"></div></div><label>内容</label><input id="mt" placeholder="例:セブンイレブン"><div style="margin-top:8px"><button class="btn" id="madd">追加</button> <button class="btn g" id="mfx">よく使う取引に登録</button></div>'+fxc()+'</div>';
+if(!L.length)h+='<p class="sub">取引がありません。「取込」からCSVを読み込むか、手入力で追加してください。</p>';
+L.slice(0,200).forEach(function(t){h+=card(t)});
+if(L.length>200)h+='<p class="sub">新しい200件まで表示しています。絞り込みを使ってください。</p>';
+V.innerHTML=h;
+document.getElementById("fm").onchange=function(){flt.m=this.value;vTx()};document.getElementById("fg").onchange=function(){flt.g=this.value;vTx()};document.getElementById("fe").onchange=function(){flt.e=this.checked;vTx()};
+document.getElementById("madd").onclick=function(){var a=num(document.getElementById("ma").value),d=document.getElementById("md").value,t=document.getElementById("mt").value.trim();if(!a||!d||!t){alert("日付・金額・内容を入力してください");return}S.tx.push(mk(d,t,a,"手入力"));save();vTx()};
+document.getElementById("mfx").onclick=function(){var a=num(document.getElementById("ma").value),t=document.getElementById("mt").value.trim();if(!a||!t){alert("金額と内容を入力してください");return}S.fx=(S.fx||[]).concat([{desc:t,amt:a}]);save();vTx()};
+V.querySelectorAll("[data-fx]").forEach(function(b){b.onclick=function(){var f=S.fx[+b.getAttribute("data-fx")];S.tx.push(mk(today(),f.desc,f.amt,"手入力"));save();vTx()}});
+V.querySelectorAll("[data-fxd]").forEach(function(b){b.onclick=function(){S.fx.splice(+b.getAttribute("data-fxd"),1);save();vTx()}});
+bindCards()}
+function card(t){var h='<div class="card" data-id="'+t.id+'"><div class="row" data-o="'+t.id+'" style="cursor:pointer"><div><div>'+ic(t.g)+" "+esc(t.desc)+'</div><div class="sub">'+t.date+" ・ "+esc(t.src)+'</div><span class="tag" style="background:var(--bd);color:var(--tx)">'+esc(t.g)+"</span>"+(t.e.on?'<span class="tag">経費 '+yen(ek(t))+" ("+t.e.ratio+'%)</span>':t.e.sug?'<span class="tag w">経費候補:'+esc(t.e.cat)+"</span>":"")+'</div><div class="amt '+(t.amt>0?"pos":"neg")+'">'+yen(t.amt)+"</div></div>";
+if(open==t.id){var e=t.e;h+='<hr style="border:0;border-top:1px solid var(--bd)"><label>ジャンル(自由に入力できます)</label><input data-f="g" list="gl" value="'+esc(t.g)+'"><datalist id="gl">'+gl().map(function(g){return"<option value=\""+esc(g)+"\">"}).join("")+'</datalist><label>物件(任意・収支の集計用)</label><input data-f="p" list="pl" value="'+esc(t.p||"")+'"><datalist id="pl">'+pls().map(function(g){return"<option value=\""+esc(g)+"\">"}).join("")+'</datalist>';
+if(t.amt<0){h+='<label><input type="checkbox" data-f="on" style="width:auto" '+(e.on?"checked":"")+'> 経費として計上する</label>';
+if(e.on||e.sug){h+='<label>経費の区分</label><input data-f="cat" value="'+esc(e.cat)+'" placeholder="例:通信費">';
+if(e.cand&&e.cand.length)h+='<div class="sub">按分割合の候補</div><div class="chips">'+e.cand.map(function(c){return'<button data-c="'+c+'" class="'+(e.ratio==c?"on":"")+'">'+c+"%</button>"}).join("")+"</div>";
+h+='<label>最終的な按分割合(%)</label><input data-f="ratio" inputmode="numeric" value="'+(e.ratio||"")+'"><div class="sub" style="margin-top:6px">全体金額 '+yen(Math.abs(t.amt))+" → 経費 <b>"+yen(Math.abs(t.amt)*(e.ratio||0)/100)+'</b></div><label>備考</label><textarea data-f="memo" rows="2">'+esc(e.memo)+"</textarea>"}}
+h+='<div class="row" style="margin-top:10px"><button class="btn r" data-del="1">削除</button><button class="btn" data-ok="1">保存して閉じる</button></div>'}
+return h+"</div>"}
+function bindCards(){V.querySelectorAll("[data-o]").forEach(function(el){el.onclick=function(){open=open==el.getAttribute("data-o")?null:el.getAttribute("data-o");(tab=="exp"?vExp:vTx)()}});
+V.querySelectorAll(".card[data-id]").forEach(function(c){var t=S.tx.filter(function(x){return x.id==c.getAttribute("data-id")})[0];if(!t||open!=t.id)return;
+c.querySelectorAll("[data-f]").forEach(function(el){el.onchange=function(){var f=el.getAttribute("data-f");if(f=="g"){t.g=el.value.trim()||"その他";learn(t)}else if(f=="on"){t.e.on=el.checked;if(el.checked&&!t.e.cand.length)t.e.cand=[10,20,30,50,100]}else if(f=="p")t.p=el.value.trim();else if(f=="ratio")t.e.ratio=Math.max(0,Math.min(100,num(el.value)));else t.e[f]=el.value;save();(tab=="exp"?vExp:vTx)()}});
+c.querySelectorAll("[data-c]").forEach(function(b){b.onclick=function(){t.e.ratio=+b.getAttribute("data-c");t.e.on=true;save();(tab=="exp"?vExp:vTx)()}});
+var d=c.querySelector("[data-del]");if(d)d.onclick=function(){if(confirm("この取引を削除しますか?")){S.tx=S.tx.filter(function(x){return x!==t});open=null;save();(tab=="exp"?vExp:vTx)()}};
+c.querySelector("[data-ok]").onclick=function(){open=null;(tab=="exp"?vExp:vTx)()}})}
+function vImp(){V.innerHTML=aiCard()+'<div class="note">銀行・証券・決済アプリとの自動連携(APIによる都度反映)は、この単体ページからはできません。各サービスの「取引履歴CSV」を書き出して、ここに取り込む方式です。実際の自動連携が必要な場合は、マネーフォワードMEなどの連携サービスを併用してください。</div><div class="card"><b>CSVを取り込む</b><label>取込元</label><select id="is"><option>銀行口座</option><option>証券口座</option><option>PayPay</option><option>楽天ペイ</option><option>クレジットカード</option><option>その他</option></select><label>金額の符号</label><select id="ip"><option value="0">マイナス=支出(銀行・証券)</option><option value="1">プラスの金額=支出(決済・カード)</option></select><label>CSVファイル</label><input type="file" id="if" accept=".csv,.txt"><p class="sub" id="ir">日付・内容・金額の列を自動判定します。文字コードはUTF-8とShift_JISに対応しています。同じ取引は重複して追加しません。</p></div>';
+document.getElementById("if").onchange=function(){var f=this.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){var t=rd.result;if(t.indexOf("\uFFFD")>=0){var r2=new FileReader();r2.onload=function(){fin(r2.result)};r2.readAsText(f,"shift_jis")}else fin(t)};rd.readAsText(f);
+function fin(t){document.getElementById("ir").textContent=imp(csv(t),document.getElementById("is").value,document.getElementById("ip").value=="1")}}}
+function vExp(){var L=S.tx.filter(function(t){return t.e.on}).sort(function(a,b){return a.date<b.date?1:-1}),yr={},tot=0,cand=S.tx.filter(function(t){return !t.e.on&&t.e.sug}).length;L.forEach(function(t){tot+=ek(t)});
+var h='<div class="card"><div class="row"><span>計上済み '+L.length+'件</span><b>経費合計 '+yen(tot)+'</b></div>'+(cand?'<div class="sub">未確認の経費候補が'+cand+'件あります(取引タブで「経費の候補」を絞り込み)</div>':"")+'<div class="row" style="margin-top:8px"><button class="btn" id="ex">CSVで出力</button><span class="sub">税理士への共有・確定申告用</span></div></div>';
+h+='<div class="card wrap"><table><tr><th>日付</th><th>内容</th><th>区分</th><th>全体金額</th><th>按分</th><th>経費額</th><th>備考</th></tr>'+L.map(function(t){return"<tr><td>"+t.date+"</td><td>"+esc(t.desc)+"</td><td>"+esc(t.e.cat)+"</td><td>"+yen(Math.abs(t.amt))+"</td><td>"+t.e.ratio+"%</td><td>"+yen(ek(t))+"</td><td>"+esc(t.e.memo)+"</td></tr>"}).join("")+"</table></div><p class='sub'>修正は取引タブで該当の取引を開いて行います。</p>";
+V.innerHTML=h;document.getElementById("ex").onclick=function(){
+var rows=[["日付","内容","取込元","区分","全体金額","按分割合(%)","経費額","備考"]].concat(L.map(function(t){return[t.date,t.desc,t.src,t.e.cat,Math.abs(t.amt),t.e.ratio,ek(t),t.e.memo]}));
+sv("経費一覧.csv","\ufeff"+rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"'}).join(",")}).join("\r\n"))}}
+function sv(n,txt){if(!dl){alert("この環境ではダウンロードを利用できません");return}dl.save({filename:n,data:new Blob([txt],{type:n.slice(-3)=="csv"?"text/csv":"application/json"})}).catch(function(){})}
+function vSet(){V.innerHTML=thCard()+'<div class="card"><b>バックアップ</b><p class="sub">データはこの端末のブラウザ内に保存されます。ブラウザのデータを消すと失われるため、定期的に書き出してください。</p><div class="row"><button class="btn g" id="bk">書き出し(JSON)</button><input type="file" id="rs" accept=".json" style="width:55%"></div></div><div class="card"><b>全データを削除</b><p class="sub">取引と経費の記録をすべて消します。</p><button class="btn r" id="clr">削除する</button></div><div class="note">経費の自動判定は、摘要の文字から推定した候補です。経費に該当するか、按分割合が妥当かは、使用実態の記録をもとに最終的にご自身で確認してください。</div>';
+document.getElementById("bk").onclick=function(){sv("家計簿バックアップ.json",JSON.stringify(S))};
+document.getElementById("rs").onchange=function(){var f=this.files[0];if(!f)return;var rd=new FileReader();rd.onload=function(){try{var o=JSON.parse(rd.result);if(o&&o.tx){S=o;save();alert("復元しました");tab="tx";render()}}catch(e){alert("読み込めませんでした")}};rd.readAsText(f)};
+document.getElementById("clr").onclick=function(){if(confirm("本当にすべて削除しますか?")){S={tx:[]};save();render()}}}
+render();
+try{claude.use("downloads").then(function(d){dl=d}).catch(function(){})}catch(e){}
+var sp=null;
+try{claude.use("sample").then(function(s){sp=s;if(tab=="imp")render()}).catch(function(){})}catch(e){}
+function aiCard(){if(!sp)return"";return '<div class="card"><b>スクショ・レシート・貼り付けから取り込む</b><p class="sub">PayPay・楽天ペイ・銀行アプリの履歴画面のスクリーンショット、レシート写真、または通知メールの文章から、日付・内容・金額・ジャンルをClaudeが読み取ります。CSVは不要です。</p><input type="file" id="aif" accept="image/*" multiple><label>または文字を貼り付け</label><textarea id="ait" rows="4" placeholder="利用履歴や通知メールの文章を貼り付け"></textarea><label>取込元</label><select id="ais"><option>PayPay</option><option>楽天ペイ</option><option>銀行口座</option><option>証券口座</option><option>レシート</option><option>その他</option></select><div style="margin-top:8px"><button class="btn" id="aigo">読み取って追加</button></div><p class="sub" id="aim"></p></div>'}
+async function ai(){var m=document.getElementById("aim"),fs=document.getElementById("aif").files,tx=document.getElementById("ait").value.trim(),src=document.getElementById("ais").value;if(!fs.length&&!tx){m.textContent="画像か文字を入力してください";return}m.textContent="読み取り中...";
+try{var im=Array.prototype.slice.call(fs,0,6),p="次の入力から取引を抜き出し、JSON配列だけを返してください。各要素は {\"date\":\"YYYY-MM-DD\",\"desc\":\"店名や内容\",\"amount\":数値,\"genre\":\"ジャンル\"}。支出はマイナス、収入はプラスの数値。年が不明なら2026年。ジャンルは次から選ぶ:"+gl().join("、")+"。"+(tx?"\n入力文:\n"+tx:"");
+var r=await sp.json(p,im.length?{images:im}:{}),arr=Array.isArray(r)?r:(r&&r.transactions)||[],ex={},add=0;S.tx.forEach(function(t){ex[t.date+"|"+t.desc+"|"+t.amt+"|"+t.src]=1});
+arr.forEach(function(x){var d=nd(x.date),a=num(x.amount),de=String(x.desc||"").trim();if(!d||!a||!de)return;var k=d+"|"+de+"|"+a+"|"+src;if(ex[k])return;ex[k]=1;var t=mk(d,de,a,src);if(t.g=="その他"&&x.genre)t.g=String(x.genre);S.tx.push(t);add++});
+save();m.textContent=add+"件を追加しました。取引タブで内容を確認してください"}catch(e){m.textContent="読み取れませんでした。画像を鮮明にして再度お試しください"}}
+function today(){var d=new Date();return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)}
+function pmo(m,d){var a=m.split("-"),x=new Date(+a[0],+a[1]-1+(d===undefined?-1:d),1);return x.getFullYear()+"-"+("0"+(x.getMonth()+1)).slice(-2)}
+function ic(g){return ICON[g]||"🔖"}
+function gc(g){var i=0,k;for(k=0;k<g.length;k++)i+=g.charCodeAt(k);return PAL[i%PAL.length]}
+function pls(){var o={};S.tx.forEach(function(t){if(t.p)o[t.p]=1});return Object.keys(o)}
+function applyTh(){var d=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches,T=THEMES[S.th]||THEMES["楽天"],s=document.documentElement.style;s.setProperty("--ac",d?T[1]:T[0]);s.setProperty("--acbg",d?T[3]:T[2])}
+function thCard(){return'<div class="card"><b>テーマカラー</b><div class="chips">'+Object.keys(THEMES).map(function(k){return'<button data-th="'+k+'" class="'+((S.th||"楽天")==k?"on":"")+'">'+k+"</button>"}).join("")+"</div></div>"}
+function fxc(){if(!S.fx||!S.fx.length)return"";return'<div class="sub" style="margin-top:8px">よく使う取引(タップで今日の日付で追加)</div><div class="chips">'+S.fx.map(function(f,i){return'<button data-fx="'+i+'">'+esc(f.desc)+" "+yen(f.amt)+'</button><button data-fxd="'+i+'" style="padding:6px 8px">✕</button>'}).join("")+"</div>"}
+function bar(p,c){return'<div style="height:8px;background:var(--bd);border-radius:99px;overflow:hidden"><div style="height:8px;width:'+Math.min(100,p)+'%;background:'+c+'"></div></div>'}
+function sm(L,f){return L.filter(f).reduce(function(s,t){return s+Math.abs(t.amt)},0)}
+function gsum(L){var G={};L.forEach(function(t){if(t.amt<0&&t.g!="投資")G[t.g]=(G[t.g]||0)+Math.abs(t.amt)});return G}
+function vHome(){var cm=flt.hm||today().slice(0,7),pm=pmo(cm),yr=cm.slice(0,4),T=S.tx.filter(function(t){return t.date.slice(0,7)==cm}),P=S.tx.filter(function(t){return t.date.slice(0,7)==pm}),inc=sm(T,function(t){return t.amt>0}),G=gsum(T),PG=gsum(P),out=0,po=0,k,i;
+for(k in G)out+=G[k];for(k in PG)po+=PG[k];
+var en=Object.keys(G).sort(function(a,b){return G[b]-G[a]}),sv2=inc-out,h='<div class="card hero"><div class="row"><button class="btn g" data-hm="-1">◀</button><b style="font-size:17px">'+cm.replace("-","年")+'月</b><button class="btn g" data-hm="1">▶</button></div><div class="grid" style="margin-top:10px;text-align:center"><div><div class="sub">収入</div><b class="pos" style="font-size:18px">'+yen(inc)+'</b></div><div><div class="sub">支出</div><b style="font-size:18px">'+yen(out)+'</b></div></div><div style="text-align:center;margin-top:8px"><span class="sub">収支</span> <b style="font-size:22px;color:'+(sv2>=0?"#fff":"#ffe08a")+'">'+yen(sv2)+"</b></div>";
+if(po>0){var r=Math.round((out-po)/po*100);h+='<div class="sub" style="text-align:center">先月比 '+(r>=0?"▲":"▼")+Math.abs(r)+"%</div>"}
+h+="</div>";
+var cmt="先月のデータがたまると、比較コメントが出ます。",best=null;
+for(k in G){var df=G[k]-(PG[k]||0);if(po>0&&df>0&&(!best||df>best[1]))best=[k,df]}
+if(best)cmt=ic(best[0])+"「"+best[0]+"」が先月より"+yen(best[1])+"増えています。";else if(po>0&&out<=po)cmt="今月は先月より支出が少なめです。いい調子です 🎉";
+if(inc>0&&sv2>0)cmt+=" 今月は"+yen(sv2)+"の黒字です。";
+h+='<div class="card"><b>今月のひとこと</b><div style="margin-top:4px">'+esc(cmt)+"</div></div>";
+if(out>0){var C=251.3,off=0,dn='<svg viewBox="0 0 100 100" width="150" height="150" style="flex:none">';
+en.forEach(function(g){var l=C*G[g]/out;dn+='<circle cx="50" cy="50" r="40" fill="none" stroke="'+gc(g)+'" stroke-width="16" stroke-dasharray="'+l+" "+(C-l)+'" stroke-dashoffset="'+(-off)+'" transform="rotate(-90 50 50)"/>';off+=l});
+dn+='<text x="50" y="53" text-anchor="middle" font-size="9" fill="currentColor">'+yen(out)+"</text></svg>";
+h+='<div class="card"><b>ジャンル別の支出</b><div class="row" style="margin-top:8px;gap:12px">'+dn+'<div style="flex:1;font-size:13px">'+en.slice(0,6).map(function(g){return'<div class="row"><span><span style="color:'+gc(g)+'">●</span> '+ic(g)+" "+esc(g)+"</span><span>"+Math.round(G[g]/out*100)+"%</span></div>"}).join("")+"</div></div></div>"}
+var bg=Object.keys(S.bud||{}),ks=en.concat(bg.filter(function(g){return en.indexOf(g)<0}));
+h+='<div class="card"><b>予算ゲージ</b><div class="sub">タップで月予算を設定</div>'+(ks.length?ks.map(function(g){var b=(S.bud||{})[g],v=G[g]||0,p=b?v/b*100:0;return'<div data-b="'+esc(g)+'" style="margin-top:10px;cursor:pointer"><div class="row"><span>'+ic(g)+" "+esc(g)+'</span><span class="sub">'+yen(v)+(b?" / "+yen(b):"・予算未設定")+"</span></div>"+(b?bar(p,p>=100?"#d64545":p>=80?"#e8a100":"var(--ac)"):"")+"</div>"}).join(""):'<div class="sub">支出が入ると表示されます</div>')+"</div>";
+var ms=[];for(i=5;i>=0;i--)ms.push(pmo(cm,-i));
+var vs=ms.map(function(m){var g=gsum(S.tx.filter(function(t){return t.date.slice(0,7)==m})),s=0,q;for(q in g)s+=g[q];return s}),mx=Math.max.apply(null,vs.concat([1]));
+h+='<div class="card"><b>月ごとの支出(6か月)</b><svg viewBox="0 0 300 110" width="100%" style="margin-top:6px">'+vs.map(function(v,j){var hh=v/mx*80;return'<rect x="'+(j*50+10)+'" y="'+(90-hh)+'" width="30" height="'+hh+'" rx="4" fill="var(--ac)" opacity="'+(j==5?1:0.55)+'"/><text x="'+(j*50+25)+'" y="105" text-anchor="middle" font-size="10" fill="currentColor">'+(+ms[j].slice(5))+"月</text>"}).join("")+"</svg></div>";
+var Y=S.tx.filter(function(t){return t.amt<0&&t.date.slice(0,4)==yr}),cf=Y.filter(function(t){return t.e.on}),cd=Y.filter(function(t){return !t.e.on&&t.e.sug}),et=cf.reduce(function(s,t){return s+ek(t)},0),pc=cf.length+cd.length?Math.round(cf.length/(cf.length+cd.length)*100):0;
+h+='<div class="card"><b>'+yr+'年の経費</b><div class="row" style="margin-top:6px"><span>計上済み '+cf.length+'件</span><b>'+yen(et)+"</b></div>"+bar(pc,"var(--ac)")+'<div class="sub">経費候補の確認 '+pc+"%(未確認 "+cd.length+"件)</div></div>";
+var PL=pls();
+h+='<div class="card"><b>物件別の収支('+yr+'年)</b>'+(PL.length?PL.map(function(p){var L=S.tx.filter(function(t){return t.p==p&&t.date.slice(0,4)==yr}),pi=sm(L,function(t){return t.amt>0}),pe=L.filter(function(t){return t.e.on}).reduce(function(s,t){return s+ek(t)},0),pr=(S.pp||{})[p];return'<div data-pp="'+esc(p)+'" style="margin-top:10px;cursor:pointer"><div class="row"><b>🏢 '+esc(p)+'</b><span class="sub">'+(pr?"今年の利回り "+(pi/pr*100).toFixed(1)+"%":"タップで取得額を設定")+'</span></div><div class="sub">収入 '+yen(pi)+" ・ 経費 "+yen(pe)+" ・ 収支 <b>"+yen(pi-pe)+"</b></div></div>"}).join(""):'<div class="sub">取引を開いて「物件」を入力すると、物件ごとの収支が出ます。</div>')+"</div>";
+V.innerHTML=h}
+V.addEventListener("click",function(e){var t=e.target,b=t.closest?t.closest("[data-b],[data-pp],[data-hm],[data-th]"):null;if(t.id=="aigo")ai();if(!b)return;
+if(b.hasAttribute("data-th")){S.th=b.getAttribute("data-th");applyTh();save();render()}
+else if(b.hasAttribute("data-hm")){flt.hm=pmo(flt.hm||today().slice(0,7),+b.getAttribute("data-hm"));vHome()}
+else if(b.hasAttribute("data-b")){var g=b.getAttribute("data-b"),v=prompt(g+"の月予算(円)。空欄で解除",(S.bud&&S.bud[g])||"");if(v!==null){S.bud=S.bud||{};if(v.trim()==="")delete S.bud[g];else S.bud[g]=num(v);save();vHome()}}
+else if(b.hasAttribute("data-pp")){var p=b.getAttribute("data-pp"),w=prompt(p+"の取得額(円)。空欄で解除",(S.pp&&S.pp[p])||"");if(w!==null){S.pp=S.pp||{};if(w.trim()==="")delete S.pp[p];else S.pp[p]=num(w);save();vHome()}}});
+applyTh();try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",applyTh)}catch(e){}
+</script>
+</body>
+</html>
